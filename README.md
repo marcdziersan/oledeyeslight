@@ -1,295 +1,188 @@
-1. Ziel und Funktionsbeschreibung
+# Arduino OLED Eyes – LDR Wake/Sleep Demo
 
-Dieses Arduino-Projekt nutzt einen LDR (Fotowiderstand) + 10 kΩ als Helligkeitssensor und ein SSD1306-OLED (128×64, I²C) zur Darstellung von „Augen“:
+Ein spielerisches Arduino‑Projekt mit **OLED‑Display (SSD1306)** und **Fotowiderstand (LDR)**.  
+Je nach Umgebungshelligkeit „schlafen“ oder „wachen“ animierte Augen, inklusive zufälliger Blickbewegungen und realistischem Blinzeln.
 
-SLEEP (schlafen): Augen sind geschlossen (zwei Linien).
+---
 
-AWAKE (wach): Augen sind offen (Kreise + Pupillen).
+## ✨ Features
 
-Aufwachen/ Einschlafen erfolgt über Hysterese-Schwellwerte (THRESH_ON / THRESH_OFF), basierend auf einem geglätteten Analogwert.
+- **Wake / Sleep per Licht**
+  - Dunkel → Augen geschlossen
+  - Hell → Augen offen
+- **Hysterese‑Logik** verhindert Flackern
+- **Geglätteter Analogwert** (Low‑Pass‑Filter)
+- **Lebendige Animation**
+  - Zufällige Blickrichtungen
+  - Weiche Pupillenbewegung
+  - Natürliches Blinzeln
+- **Nicht‑blockierend**
+  - Komplett auf `millis()` basierend
+  - Keine `delay()`‑Aufrufe
 
-Im Wachmodus:
+---
 
-Pupillen bewegen sich weich zu zufälligen Zielen (Blickwechsel 1–5 s).
+## 🧰 Hardware
 
-Es gibt gelegentliches Blinzeln (alle 10–25 s, Dauer ~180 ms).
+### Benötigte Komponenten
 
-Alles ist nicht-blockierend (millis), also keine delay()-Stopps.
+- Arduino **UNO**
+- OLED **SSD1306 128×64 (I²C)**
+- **Fotowiderstand (LDR)**
+- **10 kΩ Widerstand**
+- Breadboard & Jumperkabel
 
-2. Stückliste (Bill of Materials)
+### Optional (empfohlen)
 
-Pflicht:
+- 100 nF Keramik‑Kondensator (Entstörung)
+- 10 µF Elko (stabile OLED‑Versorgung)
 
-Arduino UNO
+---
 
-OLED SSD1306 128×64 I²C (typisch Adresse 0x3C)
+## 🔌 Verdrahtung
 
-LDR (Fotowiderstand)
+### OLED (I²C)
 
-10 kΩ Widerstand (für Spannungsteiler)
+| OLED | Arduino UNO |
+|----|----|
+| GND | GND |
+| VCC | 5V |
+| SDA | A4 |
+| SCL | A5 |
 
-Breadboard + Jumperkabel
+*(Manche Module akzeptieren auch 3.3 V – Datenblatt prüfen.)*
 
-Optional (empfohlen):
+### LDR + 10 kΩ Spannungsteiler
 
-100 nF Kerko nahe OLED-VCC/GND (gegen Störungen)
+Standard‑Variante (hell = hoher Analogwert):
 
-10 µF Elko nahe OLED-VCC/GND (bei langen Leitungen)
+```
+5V ── LDR ──┬── A0
+            │
+          10kΩ
+            │
+           GND
+```
 
-3. Hardware-Aufbau
-3.1 OLED (I²C) an Arduino UNO
+Falls die Werte invertiert sind, LDR und 10 kΩ tauschen.
 
-OLED-Pins (typisch):
+---
 
-GND → GND
+## 📦 Software
 
-VCC → 5V (oder 3.3 V, je nach Modul)
+### Benötigte Bibliotheken
 
-SCL → A5
+Installierbar über den Arduino Library Manager:
 
-SDA → A4
+- **Adafruit GFX Library**
+- **Adafruit SSD1306**
+- **Wire** (Standard)
 
-Hinweis: Beim UNO sind I²C-Pins auch oft als SCL/SDA extra herausgeführt (zusätzlich zu A4/A5).
+### Board & Einstellungen
 
-3.2 LDR + 10 kΩ Spannungsteiler an A0
+- Board: **Arduino UNO**
+- Baudrate (optional Debug): **9600**
+- OLED‑Adresse: `0x3C`
 
-Ziel: Aus dem lichtabhängigen Widerstand wird eine analoge Spannung.
+---
 
-Empfohlene Standard-Verschaltung:
+## 🧠 Funktionsprinzip
 
-5V → LDR → Knotenpunkt → 10 kΩ → GND
+### Zustände
 
-Knotenpunkt → A0
+- **SLEEP**
+  - Augen geschlossen
+- **AWAKE**
+  - Augen offen
+  - Pupillen bewegen sich zufällig
+  - Gelegentliches Blinzeln
 
-Das ergibt:
+### Hysterese
 
-hell (LDR klein) → Spannung am A0 hoch → Analogwert hoch
+```cpp
+THRESH_ON  = 670; // Wechsel zu AWAKE
+THRESH_OFF = 630; // Wechsel zu SLEEP
+```
 
-dunkel (LDR groß) → Spannung am A0 niedrig → Analogwert niedrig
+Dadurch kein permanentes Umschalten bei Grenzwerten.
 
-Wenn deine Werte „verkehrt herum“ laufen (bei dunkel hoch statt niedrig), einfach LDR und 10 kΩ im Teiler tauschen:
+### Glättung
 
-5V → 10 kΩ → Knoten → LDR → GND
+```cpp
+filtered = ALPHA * raw + (1 - ALPHA) * filtered;
+```
 
-4. Software-Abhängigkeiten
+- `ALPHA = 0.15` → guter Kompromiss aus Ruhe und Reaktion
 
-Benötigte Bibliotheken (Arduino Library Manager):
+---
 
-Adafruit GFX Library
+## ⏱️ Timings
 
-Adafruit SSD1306
+| Funktion | Wert |
+|-------|------|
+| Blickwechsel | 1–5 s |
+| Pupillen‑Step | 50 ms |
+| Blinzeln | alle 10–25 s |
+| Blinkdauer | 180 ms |
 
-Wire (standardmäßig dabei)
+---
 
-Board: Arduino UNO
-Serielle Baudrate: 9600
+## 🛠️ Kalibrierung (wichtig)
 
-5. Programmstruktur (Übersicht)
-5.1 Globale Konfiguration
+Jeder LDR reagiert anders.
 
-OLED:
+1. Temporär im Code ausgeben:
+   ```cpp
+   Serial.println(filtered);
+   ```
+2. Messwerte notieren:
+   - **dunkel**
+   - **hell**
+3. Schwellen anpassen:
+   ```cpp
+   THRESH_ON  knapp unter hell
+   THRESH_OFF knapp über dunkel
+   ```
 
-Auflösung: 128×64
+Empfohlene Hysterese: **20–80 ADC‑Stufen**.
 
-Adresse: 0x3C (SCREEN_ADDRESS)
+---
 
-LDR / Analog:
+## 🧪 Typische Probleme
 
-READ_PIN = A0
+### OLED bleibt schwarz
+- Falsche I²C‑Adresse (`0x3C` vs `0x3D`)
+- SDA / SCL vertauscht
+- Versorgungsspannung prüfen
 
-Hysterese-Schwellen:
+### Flackern zwischen Sleep/Wake
+- Schwellen zu nah beieinander
+- `ALPHA` zu hoch
+- Unruhige Stromversorgung
 
-THRESH_ON = 670 (ab hier wird wach)
+### Analogwert „falsch herum“
+- Spannungsteiler tauschen
 
-THRESH_OFF = 630 (ab hier wird wieder schlafen)
+---
 
-Glättung (Low-Pass Filter):
+## 🚀 Erweiterungen
 
-filtered = ALPHA * raw + (1-ALPHA) * filtered
+- Licht‑abhängige Blickrichtung
+- Pupillengröße dynamisch
+- „Müde“ oder „neugierige“ Modi
+- Auto‑Kalibrierung beim Start
+- Debug‑Overlay (Helligkeitsbalken)
 
-ALPHA = 0.15 (0…1; höher = reaktionsschneller, niedriger = ruhiger)
+---
 
-5.2 Zustandsautomaten
+## 📄 Lizenz
 
-Mode
+Freie Nutzung für Lern‑ und Bastelprojekte.  
+Keine Garantie – Einsatz auf eigene Verantwortung.
 
-SLEEP
+---
 
-AWAKE
+## 👤 Autor
 
-BlinkState
-
-OPEN
-
-CLOSED
-
-5.3 Timing (millis)
-
-Blickzielwechsel: zufällig alle 1–5 s
-
-Pupillen-Schritt: alle 50 ms maximal 1 Pixel pro Achse
-
-Blinkintervall: zufällig 10–25 s
-
-Blinkdauer: 180 ms
-
-6. Ablauf im Detail (Logik)
-6.1 setup()
-
-Serial startet (nur Debug).
-
-Zufallsseed: randomSeed(analogRead(A0));
-
-OLED init: display.begin(...)
-
-A0 als Input
-
-Initialwert für filtered wird gesetzt
-
-Startzustand: Eyes Closed (SLEEP)
-
-Timer initialisiert
-
-6.2 loop()
-
-Schritt 1: Messen + Glätten
-
-raw = analogRead(A0)
-
-filtered per ALPHA geglättet
-
-Schritt 2: Moduswechsel (Hysterese)
-
-Wenn SLEEP und filtered >= THRESH_ON → AWAKE
-
-Wenn AWAKE und filtered <= THRESH_OFF → SLEEP
-
-Schritt 3: AWAKE-Verhalten
-
-Wenn Augen offen:
-
-ggf. neues Blickziel
-
-Pupille schrittweise Richtung Ziel
-
-Blinken:
-
-OPEN → nach nextBlinkDelayMs kurz CLOSED
-
-CLOSED → nach BLINK_DURATION_MS wieder OPEN, neuer Delay
-
-7. Parameter-Tuning (wichtig für deinen Aufbau)
-7.1 Schwellwerte korrekt bestimmen
-
-Da LDRs, Widerstände, Umgebungslicht und Verkabelung stark variieren, sind 670/630 nur Beispielwerte.
-
-Praktischer Kalibrier-Test:
-
-Temporär in loop() ausgeben:
-
-Serial.print(raw); Serial.print(" "); Serial.println(filtered);
-
-Dann:
-
-Werte bei „dunkel“ notieren
-
-Werte bei „hell“ notieren
-
-Regel:
-
-THRESH_ON etwas unterhalb „hell“-Wert
-
-THRESH_OFF etwas oberhalb „dunkel“-Wert
-
-Abstand (Hysterese) typ. 20–80 Schritte, je nach Rauschen
-
-7.2 ALPHA einstellen
-
-0.05–0.10: sehr ruhig, aber träge
-
-0.15: guter Standard
-
-0.25–0.35: reagiert schnell, aber kann flackern
-
-Wenn dein System „zittert“ um die Schwelle:
-
-ALPHA kleiner machen und/oder
-
-THRESH_ON/OFF weiter auseinander ziehen
-
-8. Typische Fehlerbilder und Lösungen
-8.1 OLED bleibt schwarz
-
-I²C-Adresse stimmt evtl. nicht (0x3C vs 0x3D).
-
-SDA/SCL vertauscht?
-
-VCC falsch (manche Module wollen 3.3 V, die meisten 5 V tolerant)
-
-GND fehlt oder Wackelkontakt
-
-8.2 Augen flackern / wechseln schnell zwischen SLEEP und AWAKE
-
-Schwellwerte zu nah beieinander
-
-Filter zu „schnell“ (ALPHA zu hoch)
-
-Verkabelung zu lang / Störungen → Kondensator an OLED und sauberer Aufbau
-
-8.3 Analogwert „verkehrt herum“
-
-Spannungsteiler anders herum gesteckt → LDR/10k tauschen oder Schwellenlogik invertieren.
-
-8.4 Random wirkt nicht random
-
-Seed über A0 ist ok, kann aber bei sehr stabilem Licht ähnlich starten.
-
-Alternative: unbeschalteten Analogpin seed nutzen (z. B. A1 frei lassen und analogRead(A1)).
-
-9. Hinweise zur Performance / Darstellung
-
-display.display() ist relativ teuer; dein Code ruft es nur dann auf, wenn sich tatsächlich etwas ändert (Pupillenschritt, Blinkwechsel). Das ist sinnvoll.
-
-Pupillen bewegen sich pixelweise, dadurch wirkt es „organisch“ statt ruckartig.
-
-10. Erweiterungen (optional, aber passend)
-
-Helligkeitsanzeige (Debug im OLED): kleiner Balken oben.
-
-„Schlafphase“ mit Atemanimation: Augenlinien minimal wippen.
-
-Mehr Modi: neugierig, überrascht (größere Pupillen), müde (halboffene Augen).
-
-Blick folgt Lichtänderung: statt random Ziele aus filtered-Dynamik ableiten.
-
-Auto-Kalibrierung: Min/Max über die ersten 5 Sekunden sammeln und daraus Schwellen berechnen.
-
-11. Schaltplan in Textform (kompakt)
-
-OLED:
-
-OLED GND → UNO GND
-
-OLED VCC → UNO 5V
-
-OLED SDA → UNO A4
-
-OLED SCL → UNO A5
-
-LDR-Teiler (Variante: hell = hoher Wert):
-
-UNO 5V → LDR → (Knoten) → A0
-
-(Knoten) → 10 kΩ → UNO GND
-
-12. Betrieb / Testprotokoll
-
-Verkabelung prüfen (GND gemeinsam, I²C korrekt).
-
-Sketch flashen.
-
-Start: Augen geschlossen.
-
-LDR beleuchten (Handy-Lampe) → Augen öffnen, Pupillen bewegen.
-
-Licht wegnehmen → Augen schließen.
+Projekt & Idee: **Marcus**  
+Arduino / Embedded Spielereien mit Fokus auf Lernen & Experimentieren.
